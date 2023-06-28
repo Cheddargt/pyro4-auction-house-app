@@ -3,6 +3,7 @@ import Pyro4
 import timer
 from auction import Auction
 from Pyro4 import core
+import json
 
 class Client(object):
     def __init__(self, name, pubkey, encrypted_password):
@@ -31,43 +32,38 @@ class AuctionHouse(object):
     def create_auction(self, client_name, code, name, description, initial_price, end_time):
         auction = Auction(client_name, code, name, description, initial_price, end_time)
         self.auctions.append(auction)
-        self.events.emit("new_auction", name)
-    
-    def get_auctions(self):
-        return self.auctions
+        print("Auction created successfully!")
+        return True
+        # self.events.emit("new_auction", name)
 
     # register new client to the auction house
     def register(self, name, pubkey, encrypted_password):
-        if name in self.clients:
-            print("Client already registered.")
-            return False
+        # if client with this name exists:
+        for client in self.clients:
+            if client.name == name:
+                return 500
         client = Client(name, pubkey, encrypted_password)
         self.clients.append(client)
-        
-
-        print("Registro criado com sucesso!")
-        return True
+        return 200
     
 
     # check existing registration in auction house
     def check_registration(self, name):
         return name in self.clients
-        
+    
     def show_auctions(self):
+        auctions = []
+        # check if there are auctions
         if not self.auctions:
-            print("No auctions available.")
+            return None
         else:
-            print("Available Auctions:")
+            # return json array of auctions
             for auction in self.auctions:
-                print("Name:", auction.get_name())
-                print("Start Price:", auction.get_start_price())
-                print("Current Bid:", auction.get_current_bid())
-                print("Current Bidder:", auction.get_current_bidder())
-                print("Bids:", auction.get_bids())
-                print("-----------------------------")
+                auctions.append(auction.get_auction_as_json())
+            return auctions           
 
     # show bids from a specific client
-    def show_bids(self, client_name):
+    def get_bids(self, client_name):
         if client_name in self.clients:
             print("Your bids:")
             for auction in self.auctions:
@@ -80,16 +76,18 @@ class AuctionHouse(object):
             print("Client not found.")
 
     # allow a client to bid in an auction
-    def bid_auction (self, auction_name, price, bidder):
+    def bid_auction (self, auction_code, price, bidder):
         for auction in self.auctions:
-            if auction.get_name() == auction_name:
+            if auction.get_code() == auction_code:
                 if auction.bid(price, bidder):
                     # self.events.emit("new_bid", auction_name)
                     # self.events.emit("new_bid", auction_name)
                     print("Bid accepted.")
-                    return True
+                    return 200
                 else:
-                    return False
+                    return 500
+            else:
+                return 400
         return False
 
     def send_notification(self, client_name, message):
@@ -106,17 +104,17 @@ def main():
 
     auction_house = AuctionHouse()
 
-    def handle_new_auction(auction_name):
-        message = f"New auction created: {auction_name}"
-        auction_house.send_notification("all", message)
+    # def handle_new_auction(auction_name):
+    #     message = f"New auction created: {auction_name}"
+    #     auction_house.send_notification("all", message)
 
-    def handle_new_bid(auction_name):
-        message = f"New bid in auction: {auction_name}"
-        auction_house.send_notification("all", message)
+    # def handle_new_bid(auction_name):
+    #     message = f"New bid in auction: {auction_name}"
+    #     auction_house.send_notification("all", message)
 
-    def handle_new_client(client_name):
-        message = f"New client registered: {client_name}"
-        # auction_house.send_notification("all", message)
+    # def handle_new_client(client_name):
+    #     message = f"New client registered: {client_name}"
+    #     # auction_house.send_notification("all", message)
 
     # auction_house.subscribe_to_events("new_auction", handle_new_auction)
     # auction_house.subscribe_to_events("new_bid", handle_new_bid)

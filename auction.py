@@ -14,7 +14,7 @@ class Auction(object):
         self.current_bidder = None
         self.bids = []
         self.subscribers = [client_name]
-        self.timer = timer.start(end_time, self.auction_finished)
+        # self.auction_timer = timer.start(end_time, self.auction_finished)
         
 
     def bid(self, price, bidder):
@@ -30,6 +30,9 @@ class Auction(object):
     def subscribe(self, client_name):
         self.subscribers.append(client_name)
         
+    def get_code(self):
+        return self.code
+
     def get_name(self):
         return self.name
     
@@ -45,8 +48,12 @@ class Auction(object):
     def get_bids(self):
         return self.bids
     
-    def auction_finished(self):
-        return self.timer.finished()
+    def get_auction_as_json(self):
+        return {
+            "code": self.code,
+            "name": self.name,
+            "current_bid": self.current_bid,
+        }
     
     def get_subscribers(self):
         return self.subscribers

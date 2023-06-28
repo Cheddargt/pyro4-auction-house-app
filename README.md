@@ -1,3 +1,9 @@
+## TODO
+- [ ] Fix 'ver seus lances' not showing user bids
+- [ ] Fix notification service
+- [ ] Fix signature service
+
+
 ## How to Run
 
 To run the auction house application, follow these steps:
