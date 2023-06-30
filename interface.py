@@ -100,7 +100,7 @@ def login():
         print("-------------------------------------")
         req_loop = threading.Thread(target=lambda : daemon.requestLoop())
         req_loop.start()
-        main_menu()     
+        main_menu()
 
 def create_auction():
     print("Digite o código do produto:")
