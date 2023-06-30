@@ -8,9 +8,11 @@ import Pyro4
 from client import Client
 import time
 import threading
-from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives import serialization, hashes
-from cryptography.hazmat.primitives.asymmetric import rsa, padding
+from Crypto.PublicKey import RSA
+from Crypto.Signature import PKCS1_v1_5
+from Crypto.Hash import SHA256
+import base64
+
 
 daemon = Pyro4.Daemon()
 
@@ -127,12 +129,20 @@ class AuctionHouse(object):
         return True
 
     # register new client to the auction house
-    def register(self, name, pubkey):
+    def register(self, name, key64):
+        
+        message_bytes = base64.b64decode(key64)
+        key = message_bytes.decode('ascii')
+
         # if client with this name exists:
         for client in self.clients:
             if client.name == name:
                 return 500
-        client = Client(name, pubkey)
+        client = Client(name, key)
+        # Save public key to a file
+        key_path = f'./keys/{name}.pem'
+        with open(key_path, 'wb') as f:
+            f.write(key)
         self.clients.append(client)
         return 200
     
@@ -142,7 +152,6 @@ class AuctionHouse(object):
                 return 200
         return 500
        
-
     def update_timers(self):
         for auction in self.auctions:
             auction.end_time -= 1
@@ -173,26 +182,18 @@ class AuctionHouse(object):
                 auctions.append(auction.get_auction_as_json())
             return auctions           
 
-    def decrypt_message(self, bidder, enc_msg):
-        message = b"Verified"
+    def check_signature(self, bidder, enc_msg, signature):
+        # Load public key from file
+        key_path = f'./keys/{bidder}.pem'
+        with open('public.pem', 'rb') as f:
+            public_key = RSA.import_key(f.read())
 
-        for client in self.clients:
-            if client.name == bidder:
-                with open('encrypted_message.bin', 'rb') as f:
-                    encrypted_message = enc_msg
-                    try:
-                        client.pubkey.verify(
-                            encrypted_message,
-                            message,
-                            padding.PSS(
-                                mgf=padding.MGF1(hashes.SHA256()),
-                                salt_length=padding.PSS.MAX_LENGTH
-                            ),
-                            hashes.SHA256()
-                        )
-                        return True
-                    except Exception:
-                        return False
+        # Verify signature
+        # Verify the signature using the public key
+        hash = SHA256.new(enc_msg)
+        verifier = PKCS1_v1_5.new(public_key)
+        is_valid = verifier.verify(hash, signature)
+        return is_valid
 
     # show bids from a specific client
     def get_bids(self, client_name):
@@ -214,19 +215,14 @@ class AuctionHouse(object):
     # 500 = bid lower than current bid
     # 503 = auction closed
     # 505 = invalid signature
-    def bid_auction (self, auction_code, price, bidder, enc_msg):
+    def bid_auction (self, auction_code, price, bidder, enc_msg, signature):
         for auction in self.auctions:
             if auction.get_code() == auction_code:
                 if price > auction.get_current_bid():
-                    # if self.decrypt_message(bidder, enc_msg):
-                    if 1>0:
+                    if self.check_signature(bidder, enc_msg, signature):
                         auction.new_bid(price, bidder)
                         print("Bid accepted.")
                         self.send_notification("new_bid", auction)
-                    # TODO: notify subscribers
-                    # Automatically subscribe clients to receive 
-                    # notifications for new bids and auction closure 
-                    # for the registered product.
                         return 200
                     else:
                         return 505

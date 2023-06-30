@@ -1,65 +1,46 @@
 import sys
 import Pyro4
 import Pyro4.util
-from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives.asymmetric import rsa
-from cryptography.hazmat.primitives import serialization
-import cryptography
 from client import Client
+from Crypto.Signature import PKCS1_v1_5
+from Crypto.Hash import SHA256
+from Crypto.PublicKey import RSA
 global client_name
 global uri
 global pubkey
-from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives import serialization, hashes
-from cryptography.hazmat.primitives.asymmetric import rsa, padding
 import threading
+import base64
 
 daemon = Pyro4.Daemon()
 
-def encrypt_message(msg):
-    private_key_path = f'{client_name}.pem'
-    with open(private_key_path, 'rb') as f:
-        private_key = serialization.load_pem_private_key(
-            f.read(),
-            backend=default_backend()
-        )
+def get_signature(message):
 
-    # message = bytes(msg, encoding='utf-8')
-    message = b"Verified"
-    encrypted_message = private_key.sign(
-        message,
-        padding.PSS(
-        mgf=padding.MGF1(hashes.SHA256()),
-        salt_length=padding.PSS.MAX_LENGTH
-        ),
-        hashes.SHA256()
-    )   
+    # Load private key from file
+    key_path = f'{client_name}.pem'
+    with open(key_path, 'rb') as f:
+        private_key = RSA.import_key(f.read())
 
-    return encrypted_message
+    # Sign a message using the private key
+    hash = SHA256.new(message)
+    signer = PKCS1_v1_5.new(private_key)
+    signature = signer.sign(hash)
+
+    return signature
 
 def register(name):
-    # Generate a new RSA key pair
-    private_key = rsa.generate_private_key(
-        public_exponent=65537,
-        key_size=2048,
-        backend=default_backend()
-    )
+    
+    # Generate private/public key pair
+    key = RSA.generate(2048)
 
-    # Get the public key from the private key
-    public_key = private_key.public_key()
+    # Save private key to a file
+    private_key = key.export_key()
+    key_path = f'{name}.pem'
 
-    # Serialize the public key to PEM format
-    pubkey = public_key.public_bytes(
-    encoding=serialization.Encoding.PEM,
-    format=serialization.PublicFormat.SubjectPublicKeyInfo
-    )
+    ## Save public key to a file
+    public_key = key.publickey().export_key()
+    #with open('public.pem', 'wb') as f:
+    #    f.write(public_key)
 
-    # Serialize the private key to PEM format
-    private_key_pem = private_key.private_bytes(
-    encoding=serialization.Encoding.PEM,
-    format=serialization.PrivateFormat.PKCS8,
-    encryption_algorithm=serialization.NoEncryption()
-    )
 
     """ 
     print("Digite sua chave pública:")
@@ -71,7 +52,7 @@ def register(name):
 
     uri = "PYRONAME:auction.house"
 
-    client = Client(client_name, pubkey)
+    client = Client(client_name, public_key)
 
     uri = daemon.register(client)
     nameserver = Pyro4.locateNS()
@@ -80,11 +61,15 @@ def register(name):
     req_loop = threading.Thread(target=lambda : daemon.requestLoop())
     req_loop.start()
 
-    res = auction_house.register(name, pubkey)
+    message_bytes = public_key.encode('ascii')
+    base64_bytes = base64.b64encode(message_bytes)
+    base64_message = base64_bytes.decode('ascii')
+
+
+    res = auction_house.register(name, base64_message)
     if res==200:
-        private_key_path = f'{name}.pem'
-        with open(private_key_path, "wb") as file:
-            file.write(private_key_pem)
+        with open(key_path, 'wb') as f:
+            f.write(private_key)
         print("Registration successful!")
         print("-------------------------------------")
         main_menu()
@@ -125,9 +110,9 @@ def bid_auction():
     auction_code = input()
     print("Digite o valor do lance:")
     price = float(input())
-    # enc_msg = encrypt_message('signature_verified')
-    enc_msg = 'signature_verified'
-    res = auction_house.bid_auction(auction_code, price, client_name, enc_msg)
+    message = b'assinatura verificada'
+    signature = get_signature(message)
+    res = auction_house.bid_auction(auction_code, price, client_name, message, signature)
     if (res == 200):
         print("##       Bid placed successfully!       ##")
         print("##########################################")
