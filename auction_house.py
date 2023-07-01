@@ -1,12 +1,9 @@
 from __future__ import print_function
 import time
-import Pyro4
 import timer
-from Pyro4 import core
 import json
-import Pyro4
-from client import Client
 import time
+import Pyro5.api
 import threading
 from Crypto.PublicKey import RSA
 from Crypto.Signature import PKCS1_v1_5
@@ -14,7 +11,6 @@ from Crypto.Hash import SHA256
 import base64
 
 
-daemon = Pyro4.Daemon()
 
 # define the countup func.
 def countupwards():
@@ -111,10 +107,8 @@ class Auction(object):
     def __str__(self):
         return f"Auction: {self.name}\nStart Price: {self.start_price}\nCurrent Bid: {self.current_bid}\nCurrent Bidder: {self.current_bidder}\nBids: {self.bids}"
 
-## creating an auction house in pyro4
-# acessível remotamente
-@Pyro4.expose
-@Pyro4.behavior(instance_mode="single")
+@Pyro5.api.expose
+@Pyro5.behavior(instance_mode="single")
 class AuctionHouse(object):
     def __init__(self):
         self.clients = []
@@ -129,8 +123,11 @@ class AuctionHouse(object):
         return True
 
     # register new client to the auction house
-    def register(self, name, key64):
+    # não passa o objeto do cliente, passa a referência dele
+    # referência = uri
+    def register(self, referencia_cliente, key64):
         
+
         message_bytes = base64.b64decode(key64)
         key = message_bytes.decode('ascii')
 
@@ -138,12 +135,16 @@ class AuctionHouse(object):
         for client in self.clients:
             if client.name == name:
                 return 500
-        client = Client(name, key)
+        client = Pyro5.api.Proxy(referencia_cliente)
+        # duas alternativas
+        name = client.getName()
+        name = client.name
         # Save public key to a file
         key_path = f'./keys/{name}.pem'
         with open(key_path, 'wb') as f:
             f.write(key)
         self.clients.append(client)
+        client.send_message("Registrado com sucesso!")
         return 200
     
     def login(self, name):
@@ -243,65 +244,53 @@ class AuctionHouse(object):
         # encontrar o cliente pelo nome usando o pyro4
         if (type == "new_auction"):
             for client in self.clients:
-                ns = Pyro4.locateNS()
-                uri = ns.lookup(client.name)
-                client_obj = Pyro4.Proxy(uri)
-                client_obj.send_message("################################")
-                client_obj.send_message("# [!] new auction has started! #")
-                client_obj.send_message("################################")
+                client.send_message("################################")
+                client.send_message("# [!] new auction has started! #")
+                client.send_message("################################")
         elif (type == "auction_finished"):
             # pode dar problema em referenciar objeto que não tá mais na lista de auctions
             # testado: não deu problema!
             subscribers = auction.get_subscribers()
             for sub in subscribers:
-                ns = Pyro4.locateNS()
-                uri = ns.lookup(sub)
-                client_obj = Pyro4.Proxy(uri)
-                client_obj.send_message("##########################################")
-                client_obj.send_message("##    [!] auction has finished!         ##")
-                client_obj.send_message("------------------------------------------")
-                if auction.get_current_bidder() == sub:
-                    client_obj.send_message("##    [✓] you won bought                ##")
-                    client_obj.send_message(f' {auction.get_name()} for {auction.get_current_bid()}')
-                    client_obj.send_message("##########################################")
-                else:
-                    client_obj.send_message(f'##    [$] {auction.get_name()} sold to:')
-                    client_obj.send_message(f' {auction.get_current_bidder()} for {auction.get_current_bid()}')
-                    client_obj.send_message("##########################################")
+                for client in self.clients:
+                    if client.name == sub:
+                        client.send_message("##########################################")
+                        client.send_message("##    [!] auction has finished!         ##")
+                        client.send_message("------------------------------------------")
+                        if auction.get_current_bidder() == sub:
+                            client.send_message("##    [✓] you won bought                ##")
+                            client.send_message(f' {auction.get_name()} for {auction.get_current_bid()}')
+                            client.send_message("##########################################")
+                        else:
+                            client.send_message(f'##    [$] {auction.get_name()} sold to:')
+                            client.send_message(f' {auction.get_current_bidder()} for {auction.get_current_bid()}')
+                            client.send_message("##########################################")
         elif (type == "new_bid"):
             subscribers = auction.get_subscribers()
             for sub in subscribers:
-                ns = Pyro4.locateNS()
-                uri = ns.lookup(sub)
-                client_obj = Pyro4.Proxy(uri)
-                client_obj.send_message("################################")
-                client_obj.send_message("# [!] a new bid has been made! #")
-                client_obj.send_message("--------------------------------")
-                client_obj.send_message(f'## item:   {auction.get_name()}')
-                client_obj.send_message(f'## price:   {auction.get_current_bid()}')
-                client_obj.send_message(f'## client: {auction.get_current_bidder()}')
-                client_obj.send_message("################################")
+                for client in self.clients:
+                    if client.name == sub:
+                        client.send_message("################################")
+                        client.send_message("# [!] a new bid has been made! #")
+                        client.send_message("--------------------------------")
+                        client.send_message(f'## item:   {auction.get_name()}')
+                        client.send_message(f'## price:   {auction.get_current_bid()}')
+                        client.send_message(f'## client: {auction.get_current_bidder()}')
+                        client.send_message("################################")
 
 
 
         
 
 def main():
-
-    auction_house = AuctionHouse()
-
-    # not updating timers
-    # auction_house.timer_start()
-
-    # ns = True. This tells Pyro to use a name server to register 
-    # the objects in. (The Pyro4.Daemon.serveSimple is a very easy way 
-    # to start a Pyro but it provides very little control
-    Pyro4.Daemon.serveSimple(
-        {
-            AuctionHouse: "auction.house"
-        },
-        ns = True,
-    )
+ 
+    # registra a aplicação do servidor no serviço de nomes
+    daemon = Pyro5.server.Daemon()
+    ns = Pyro5.api.locate_ns()
+    uri = daemon.register(AuctionHouse)
+    ns.register("auction.house", uri)
+    daemon.requestLoop()
+    print("Auction House is up.")
 
 if __name__=="__main__":
     main()

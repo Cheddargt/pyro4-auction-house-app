@@ -10,8 +10,28 @@ global uri
 global pubkey
 import threading
 import base64
+import Pyro5.api
+import threading
 
-daemon = Pyro4.Daemon()
+daemon = Pyro5.server.Daemon()
+
+
+class Client(object):
+    def __init__(self, name):
+        self.name = name
+        self.bids = {}
+
+    @Pyro5.api.expose
+    @Pyro5.api.callback
+    def send_message(self, message):
+        print(message)
+
+    def loopThread(daemon):
+        daemon.requestLoop()
+
+    # pra printar o objeto
+    def __str__(self):
+        return f"Name: {self.name}\nBids: {self.bids}"
 
 def get_signature(message):
 
@@ -27,7 +47,7 @@ def get_signature(message):
 
     return signature
 
-def register(name):
+def register(referenciaCliente, objetoServidor):
     
     # Generate private/public key pair
     key = RSA.generate(2048)
@@ -36,11 +56,8 @@ def register(name):
     private_key = key.export_key()
     key_path = f'{name}.pem'
 
-    ## Save public key to a file
+    # Get public key
     public_key = key.publickey().export_key()
-    #with open('public.pem', 'wb') as f:
-    #    f.write(public_key)
-
 
     """ 
     print("Digite sua chave pública:")
@@ -49,17 +66,6 @@ def register(name):
     print("Digite a URI do objeto remoto")
     uri = input()
     """
-
-    uri = "PYRONAME:auction.house"
-
-    client = Client(client_name, public_key)
-
-    uri = daemon.register(client)
-    nameserver = Pyro4.locateNS()
-    nameserver.register(f'{client_name}', uri)
-
-    req_loop = threading.Thread(target=lambda : daemon.requestLoop())
-    req_loop.start()
 
     message_bytes = public_key.encode('ascii')
     base64_bytes = base64.b64encode(message_bytes)
@@ -78,13 +84,14 @@ def register(name):
         print("-------------------------------------")
         login()
 
-def login():
+def login(referenciaCliente, objetoServidor):
     res = auction_house.login(client_name)
     if res==200:
         print("Login successful!")
         print("-------------------------------------")
-        req_loop = threading.Thread(target=lambda : daemon.requestLoop())
-        req_loop.start()
+        thread = threading.Thread(target=callback.loopThread, args=(daemon, ))
+        thread.daemon = True
+        thread.start()
         main_menu()
 
 def create_auction():
@@ -184,18 +191,27 @@ def main_menu():
         opc = int(input())
         switch_case(opc)
 
-sys.excepthook = Pyro4.util.excepthook
-auction_house = Pyro4.Proxy("PYRONAME:auction.house")
-print("Auction house is ready.")
-print("-------------------------------------")
-print("## bem-vindo à casa de leilões! por favor, insira seu nome:")
-print("## por favor, insira seu nome:")
-client_name = input()
+def main():
 
-if auction_house.check_registration(client_name) == False:
-    print("Registro não encontrado. Criando novo registro...")
-    register(client_name)
-else:     
-    print("Registro encontrado. Fazendo login...")
-    main_menu()
+    ns = Pyro5.api.locate_ns()
+    uri = ns.lookup("auction.house")
+    obj_servidor = Pyro5.api.Proxy(uri)
+    print("Auction house is ready.")
+    print("-------------------------------------")
+    print("## bem-vindo à casa de leilões! por favor, insira seu nome:")
+    print("## por favor, insira seu nome:")
+    client_name = input()
+
+    cliente = Client
+    referenciaCliente = daemon.register(cliente)
+
+    res = login(client_name, obj_servidor)
+
+    if res == 500:
+ 
+    elif res == 200:     
+        print("Registro encontrado. Fazendo login...")
+        main_menu()
+    else:
+        print("404 erro")
     
