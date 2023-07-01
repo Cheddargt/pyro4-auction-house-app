@@ -16,75 +16,13 @@ import threading
 
 daemon = Pyro4.Daemon()
 
-def encrypt_message(msg):
-    private_key_path = f'{client_name}.pem'
-    with open(private_key_path, 'rb') as f:
-        private_key = serialization.load_pem_private_key(
-            f.read(),
-            backend=default_backend()
-        )
-
-    # message = bytes(msg, encoding='utf-8')
-    message = b"Verified"
-    encrypted_message = private_key.sign(
-        message,
-        padding.PSS(
-        mgf=padding.MGF1(hashes.SHA256()),
-        salt_length=padding.PSS.MAX_LENGTH
-        ),
-        hashes.SHA256()
-    )   
-
-    return encrypted_message
-
-def register(name):
-    # Generate a new RSA key pair
-    private_key = rsa.generate_private_key(
-        public_exponent=65537,
-        key_size=2048,
-        backend=default_backend()
-    )
-
-    # Get the public key from the private key
-    public_key = private_key.public_key()
-
-    # Serialize the public key to PEM format
-    pubkey = public_key.public_bytes(
-    encoding=serialization.Encoding.PEM,
-    format=serialization.PublicFormat.SubjectPublicKeyInfo
-    )
-
-    # Serialize the private key to PEM format
-    private_key_pem = private_key.private_bytes(
-    encoding=serialization.Encoding.PEM,
-    format=serialization.PrivateFormat.PKCS8,
-    encryption_algorithm=serialization.NoEncryption()
-    )
-
-    """ 
-    print("Digite sua chave pública:")
-    password = input()
-
-    print("Digite a URI do objeto remoto")
-    uri = input()
-    """
-
-    uri = "PYRONAME:auction.house"
-
-    client = Client(client_name, pubkey)
-
-    uri = daemon.register(client)
-    nameserver = Pyro4.locateNS()
-    nameserver.register(f'{client_name}', uri)
+def register(name, uri):
 
     req_loop = threading.Thread(target=lambda : daemon.requestLoop())
     req_loop.start()
+    res = auction_house.register(name)
 
-    res = auction_house.register(name, pubkey)
     if res==200:
-        private_key_path = f'{name}.pem'
-        with open(private_key_path, "wb") as file:
-            file.write(private_key_pem)
         print("Registration successful!")
         print("-------------------------------------")
         main_menu()
@@ -125,9 +63,7 @@ def bid_auction():
     auction_code = input()
     print("Digite o valor do lance:")
     price = float(input())
-    # enc_msg = encrypt_message('signature_verified')
-    enc_msg = 'signature_verified'
-    res = auction_house.bid_auction(auction_code, price, client_name, enc_msg)
+    res = auction_house.bid_auction(auction_code, price, client_name)
     if (res == 200):
         print("##       Bid placed successfully!       ##")
         print("##########################################")
@@ -200,14 +136,18 @@ def main_menu():
         switch_case(opc)
 
 sys.excepthook = Pyro4.util.excepthook
-auction_house = Pyro4.Proxy("PYRONAME:auction.house")
+
+ns = Pyro4.locateNS()
+uri = ns.lookup('auction.house')
+auction_house = Pyro4.Proxy(uri)
+
 print("Auction house is ready.")
 print("-------------------------------------")
 print("## bem-vindo à casa de leilões! por favor, insira seu nome:")
 print("## por favor, insira seu nome:")
 client_name = input()
 
-if auction_house.check_registration(client_name) == False:
+if auction_house.login(client_name) == 500:
     print("Registro não encontrado. Criando novo registro...")
     register(client_name)
 else:     

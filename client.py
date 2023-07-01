@@ -1,15 +1,12 @@
 import Pyro4
 
-# Define the client class
-# (object) is the superclass of all classes in Python
-@Pyro4.expose
 class Client(object):
-    def __init__(self, name, pubkey):
+    def __init__(self, name):
         self.name = name
-        self.pubkey = pubkey
         self.bids = {}
 
-
+    # acessível remotamente
+    @Pyro4.expose
     def send_message(self, message):
         print(message)
 

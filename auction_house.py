@@ -15,6 +15,7 @@ from cryptography.hazmat.primitives.asymmetric import rsa, padding
 daemon = Pyro4.Daemon()
 
 # define the countup func.
+# TODO: mover pra auctionHouse
 def countupwards():
     t = 1
     while t:
@@ -110,39 +111,46 @@ class Auction(object):
         return f"Auction: {self.name}\nStart Price: {self.start_price}\nCurrent Bid: {self.current_bid}\nCurrent Bidder: {self.current_bidder}\nBids: {self.bids}"
 
 ## creating an auction house in pyro4
-# acessível remotamente
-@Pyro4.expose
 @Pyro4.behavior(instance_mode="single")
 class AuctionHouse(object):
     def __init__(self):
         self.clients = []
         self.auctions = []
 
+    # acessível remotamente
+    @Pyro4.expose
     def create_auction(self, client_name, code, name, description, initial_price, end_time):
         auction = Auction(client_name, code, name, description, initial_price, end_time)
         self.auctions.append(auction)
         # talvez precise alterar pra vetor
-        self.send_notification("new_auction", auction)
+        # self.send_notification("new_auction", auction)
         print("Auction created successfully!")
         return True
-
+    
+    # acessível remotamente
+    @Pyro4.expose
     # register new client to the auction house
-    def register(self, name, pubkey):
+    def register(self, client_name):
         # if client with this name exists:
         for client in self.clients:
-            if client.name == name:
+            if client.name == client_name:
                 return 500
-        client = Client(name, pubkey)
+            
+        client = Client(client_name)
+        # criar proxy e adi
         self.clients.append(client)
         return 200
     
+    # acessível remotamente
+    @Pyro4.expose
     def login(self, name):
         for client in self.clients:
             if client.name == name:
                 return 200
         return 500
        
-
+    # acessível remotamente
+    @Pyro4.expose
     def update_timers(self):
         for auction in self.auctions:
             auction.end_time -= 1
@@ -155,6 +163,8 @@ class AuctionHouse(object):
         print("Auction finished successfully!")
         return True
 
+    # acessível remotamente
+    @Pyro4.expose
     # check existing registration in auction house
     def check_registration(self, name):
         for client in self.clients:
@@ -162,6 +172,8 @@ class AuctionHouse(object):
                 return True
         return False
     
+    # acessível remotamente
+    @Pyro4.expose
     def show_auctions(self):
         auctions = []
         # check if there are auctions
@@ -173,28 +185,8 @@ class AuctionHouse(object):
                 auctions.append(auction.get_auction_as_json())
             return auctions           
 
-    def decrypt_message(self, bidder, enc_msg):
-        message = b"Verified"
-
-        for client in self.clients:
-            if client.name == bidder:
-                with open('encrypted_message.bin', 'rb') as f:
-                    encrypted_message = enc_msg
-                    try:
-                        client.pubkey.verify(
-                            encrypted_message,
-                            message,
-                            padding.PSS(
-                                mgf=padding.MGF1(hashes.SHA256()),
-                                salt_length=padding.PSS.MAX_LENGTH
-                            ),
-                            hashes.SHA256()
-                        )
-                        return True
-                    except Exception:
-                        return False
-
-    # show bids from a specific client
+    # acessível remotamente
+    @Pyro4.expose
     def get_bids(self, client_name):
         for client in self.clients:
             if client.name == client_name:
@@ -214,11 +206,12 @@ class AuctionHouse(object):
     # 500 = bid lower than current bid
     # 503 = auction closed
     # 505 = invalid signature
-    def bid_auction (self, auction_code, price, bidder, enc_msg):
+    # acessível remotamente
+    @Pyro4.expose
+    def bid_auction (self, auction_code, price, bidder):
         for auction in self.auctions:
             if auction.get_code() == auction_code:
                 if price > auction.get_current_bid():
-                    # if self.decrypt_message(bidder, enc_msg):
                     if 1>0:
                         auction.new_bid(price, bidder)
                         print("Bid accepted.")
@@ -292,20 +285,21 @@ class AuctionHouse(object):
 
 def main():
 
-    auction_house = AuctionHouse()
-
-    # not updating timers
-    # auction_house.timer_start()
-
-    # ns = True. This tells Pyro to use a name server to register 
-    # the objects in. (The Pyro4.Daemon.serveSimple is a very easy way 
-    # to start a Pyro but it provides very little control
+    # instanciar o servidor
+    # registrar no nameserver
     Pyro4.Daemon.serveSimple(
         {
             AuctionHouse: "auction.house"
         },
         ns = True,
     )
+
+    # redundante?
+    ns = Pyro4.locateNS()
+    # uri = ns.lookup('auction.house')
+    # registrando o servidor no serviço de nomes
+    ns.register('auction.house', uri)
+
 
 if __name__=="__main__":
     main()

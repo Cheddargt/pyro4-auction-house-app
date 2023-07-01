@@ -1,0 +1,10 @@
+slide 15 é o que preciso fazer no auction_house.py
+
+slide 16 é o que preciso fazer no cliente pra buscar a referência do servidor nos erviço de nomes
+
+seguir o 17 também
+
+no cliente você não registra a uri dele no serviço de nomes
+se não você tá abrindo pra todo mundo
+
+passar a uri do cliente no método que
