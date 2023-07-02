@@ -23,7 +23,7 @@ class Client(object):
         self.pyroRef = None
         self.bids = {}
 
-    def send_message(self, message):
+    def sendMessage(self, message):
         print(message)
 
     def loopThread(self, daemon):
@@ -57,7 +57,7 @@ class Client(object):
     def __str__(self):
         return f"Name: {self.name}\nBids: {self.bids}"
 
-def get_signature(cliente, message):
+def getSignature(cliente, message):
 
     # Load private key from file
     key_path = f'{cliente.getName()}.pem'
@@ -110,7 +110,7 @@ def register(nomeCliente, objetoServidor):
         thread = threading.Thread(target=cliente.loopThread, args=(daemon, ))
         thread.daemon = True
         thread.start()
-        main_menu(cliente, objetoServidor)
+        mainMenu(cliente, objetoServidor)
     elif res==500:
         print("Registration failed. Client already exists.")
         print("-------------------------------------")
@@ -131,7 +131,7 @@ def login(nomeCliente, objetoServidor):
         thread = threading.Thread(target=cliente.loopThread, args=(daemon, ))
         thread.daemon = True
         thread.start()
-        main_menu(cliente, objetoServidor)
+        mainMenu(cliente, objetoServidor)
     elif res==500:
         print("Registro não encontrado. Criando novo registro...")
         register(nomeCliente, objetoServidor)
@@ -139,7 +139,7 @@ def login(nomeCliente, objetoServidor):
         print("404 erro")
         exit()
 
-def create_auction(cliente, objetoServidor):
+def createAuction(cliente, objetoServidor):
     print("Digite o código do produto:")
     auction_code = input()
     print("Digite o nome do produto:")
@@ -157,15 +157,15 @@ def create_auction(cliente, objetoServidor):
         print("####      leilão não criado.           ###")
         print("##########################################")
 
-def bid_auction(cliente, objetoServidor):
+def bidAuction(cliente, objetoServidor):
     print("Digite o código do item em leilão:")
     auction_code = input()
     print("Digite o valor do lance:")
     price = float(input())
     message = b'assinatura verificada'
-    signature = get_signature(cliente, message)
+    signature = getSignature(cliente, message)
     # Todo lance deve ser assinado digitalmente pelo cliente utilizando sua chave privada.
-    res = objetoServidor.bid_auction(cliente.getPyroRef(), auction_code, price, message, signature)
+    res = objetoServidor.bidAuction(cliente.getPyroRef(), auction_code, price, message, signature)
     if (res == 200):
         print("##       Bid placed successfully!       ##")
         print("##########################################")
@@ -182,7 +182,7 @@ def bid_auction(cliente, objetoServidor):
         print("##      Bid failed. Server error.       ##")
         print("##########################################")
 
-def show_auctions(objetoServidor):
+def showAuctions(objetoServidor):
 
     auctions = objetoServidor.show_auctions()
     print("##########################################")
@@ -197,7 +197,7 @@ def show_auctions(objetoServidor):
         print("##     nenhum leilão em andamento.      ##")
         print("##########################################")           
 
-def show_bids(cliente, objetoServidor):
+def showBids(cliente, objetoServidor):
     bids = objetoServidor.get_bids(cliente.getPyroRef())
     print("-------------------------------------")
     print(bids)
@@ -206,20 +206,20 @@ def exit():
     print("Saindo...")
     return 0
 
-def main_menu(cliente, objetoServidor):
+def mainMenu(cliente, objetoServidor):
 
     opc = 0
 
     def switch_case(opc):
         match opc:
             case 1:
-                return show_auctions(objetoServidor)
+                return showAuctions(objetoServidor)
             case 2:
-                return show_bids(cliente, objetoServidor)
+                return showBids(cliente, objetoServidor)
             case 3:
-                return create_auction(cliente, objetoServidor)
+                return createAuction(cliente, objetoServidor)
             case 4:
-                return bid_auction(cliente, objetoServidor)
+                return bidAuction(cliente, objetoServidor)
             case 5:
                 return exit()
             case _:
