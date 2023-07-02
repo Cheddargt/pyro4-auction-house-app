@@ -1,5 +1,19 @@
 - quando um cliente criar um leilão ou dar um lance, como eu identifico esse cliente?
     - clientref?
+        - pelo nome, pois a referencia no pyro muda toda vez que ele deslogar
+        - aí toda vez que ele logar, atualiza a referência dele
 - eu guardo a referencia do cliente num atributo dele mesmo?
+    - não, pq esse objeto vai ser destruído e recriado toda vez que ele entrar
 - no registro, eu identifico ele pela uri do pyro dele?
     - não porque vai mudar quando ele sair e entrar
+
+- tô comparando referencia em todos os lugares, mas o que acontece se o cliente se registrar,
+dar um lance, deslogar e logar de novo? o servidor identifica que é ele mesmo?
+    - o que faz mais sentido é ter um vetor de clientes dentro do servidor que é apenas uma cópia,
+    como se fosse uma lista telefônica, de cada nome de cliente e sua referência, aí quando o cliente 
+    se registrar, o id é criado, e quando ele fizer login, o id é atualizado
+    - isso precisa existir porque toda vez que eu precisar usar a informação do nome do cliente eu acesso
+    o servidor, e quando eu precisar 
+
+
+

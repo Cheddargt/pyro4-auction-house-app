@@ -21,7 +21,7 @@ class Client(object):
     def __init__(self, name):
         self.name = name
         self.pyroRef = None
-        self.bids = {}
+        self.bids = []
 
     def sendMessage(self, message):
         print(message)
@@ -50,8 +50,15 @@ class Client(object):
     def getBids(self):
         return self.bids
     
-    def setBids(self, bids):
-        self.bids = bids
+    def addBid(self, auctionName, auctionCode, price):
+
+        newBid = {
+            "Nome": auctionCode,
+            "Código": auctionName,
+            "Lance": price,
+        }
+
+        self.bids.append(newBid)
 
     # pra printar o objeto
     def __str__(self):
@@ -100,20 +107,22 @@ def register(nomeCliente, objetoServidor):
     # key_string = key_64.decode('utf-8')
 
     # seu nome, sua chave pública e a URI do objeto remoto (do cliente)
+    print (referenciaCliente)
     res = objetoServidor.register(nomeCliente, referenciaCliente)
     
     if res==200:
         # with open(key_path, 'wb') as f:
         #     f.write(private_key)
-        print("Registration successful!")
-        print("-------------------------------------")
+        print("## Registrado com sucesso!! ###############################")
+        print("###########################################################")
+
         thread = threading.Thread(target=cliente.loopThread, args=(daemon, ))
         thread.daemon = True
         thread.start()
         mainMenu(cliente, objetoServidor)
     elif res==500:
-        print("Registration failed. Client already exists.")
-        print("-------------------------------------")
+        print("## Registro falhou. Cliente já registrado. ################")
+        print("###########################################################")
         login(cliente, objetoServidor)
 
 def login(nomeCliente, objetoServidor):
@@ -126,14 +135,16 @@ def login(nomeCliente, objetoServidor):
     res = objetoServidor.login(nomeCliente, referenciaCliente)
 
     if res==200:
-        print("Login successful!")
-        print("-------------------------------------")
+        print("## Logado com sucesso! ####################################")
+        print("## Bem-vindo à casa de leilões, " + cliente.name + "!!")
+        print("###########################################################")
+
         thread = threading.Thread(target=cliente.loopThread, args=(daemon, ))
         thread.daemon = True
         thread.start()
         mainMenu(cliente, objetoServidor)
     elif res==500:
-        print("Registro não encontrado. Criando novo registro...")
+        print("## Registro não encontrado. Criando novo registro... ######")
         register(nomeCliente, objetoServidor)
     else:
         print("404 erro")
@@ -150,12 +161,12 @@ def createAuction(cliente, objetoServidor):
     initial_price = float(input())
     print("Digite o tempo de término do leilão (em segundos):")
     end_time = int(input())
-    if objetoServidor.create_auction(cliente.getPyroRef(), auction_code, name, description, initial_price, end_time):
-        print("####      leilão criado com sucesso!   ###")
-        print("##########################################")
+    if objetoServidor.createAuction(cliente.getName(), auction_code, name, description, initial_price, end_time):
+        print("######----- Leilão criado com sucesso! ------##############")
+        print("###########################################################")
     else:
-        print("####      leilão não criado.           ###")
-        print("##########################################")
+        print("## Leilão não criado. #####################################")
+        print("###########################################################")
 
 def bidAuction(cliente, objetoServidor):
     print("Digite o código do item em leilão:")
@@ -163,47 +174,54 @@ def bidAuction(cliente, objetoServidor):
     print("Digite o valor do lance:")
     price = float(input())
     message = b'assinatura verificada'
-    signature = getSignature(cliente, message)
+    # signature = getSignature(cliente, message)
     # Todo lance deve ser assinado digitalmente pelo cliente utilizando sua chave privada.
-    res = objetoServidor.bidAuction(cliente.getPyroRef(), auction_code, price, message, signature)
+    res = objetoServidor.bidAuction(cliente.getName(), auction_code, price, message, 'signature')
     if (res == 200):
         print("##       Bid placed successfully!       ##")
-        print("##########################################")
+        print("###########################################################")
     elif (res == 505):
         print("##    Bid failed. Invalid signature.    ##")
-        print("##########################################")
+        print("###########################################################")
     elif (res == 500):
         print("##  Bid failed. Current bid is higher.  ##")
         print("##########################################")
     elif (res == 503):
         print("##    Bid failed. Auction not found.    ##")
-        print("##########################################")
+        print("###########################################################")
     else:
         print("##      Bid failed. Server error.       ##")
-        print("##########################################")
+        print("###########################################################")
 
 def showAuctions(objetoServidor):
 
-    auctions = objetoServidor.show_auctions()
-    print("##########################################")
-    print("########## leilões em andamento: #########")
+    auctions = objetoServidor.showAuctions()
+    print("###########################################################")
+    print("## Leilões em andamento: ##################################")
     print("------------------------------------------")
 
     if auctions != None:
         for auction in auctions:
             print(auction)
-        print("##########################################")           
+        print("###########################################################")           
     else:
-        print("##     nenhum leilão em andamento.      ##")
-        print("##########################################")           
+        print("## Nenhum leilão em andamento. ############################")
+        print("###########################################################")           
 
 def showBids(cliente, objetoServidor):
-    bids = objetoServidor.get_bids(cliente.getPyroRef())
-    print("-------------------------------------")
-    print(bids)
+    bids = objetoServidor.getBids(cliente.getName())
+
+    if bids != None:
+        print("###########################################################")
+        print("## seus lances: ###########################################")
+        print("-----------------------------------------------------------")
+        print(bids)
+    else:
+        print("## Você ainda não deu nenhum lance. #######################")
+        print("###########################################################") 
 
 def exit():
-    print("Saindo...")
+    print("## Saindo...")
     return 0
 
 def mainMenu(cliente, objetoServidor):
@@ -226,15 +244,14 @@ def mainMenu(cliente, objetoServidor):
                 print("Opção inválida")
 
     while opc != 5:
-        print("##########################################")
-        print("## bem-vindo à casa de leilões, " + cliente.name + "!")
-        print("##        selecione uma opção:          ##")
-        print("1: ver leilões em andamento")
-        print("2: ver seus lances")
-        print("3: criar um novo leilão")
-        print("4: dar um lance em um leilão") 
-        print("5: sair")
-        print("##########################################")
+        print("###########################################################")
+        print("## Selecione uma opção: ###################################")
+        print("## 1: ver leilões em andamento ############################")
+        print("## 2: ver seus lances #####################################")
+        print("## 3: criar um novo leilão ################################")
+        print("## 4: dar um lance em um leilão ###########################") 
+        print("## 5: sair ################################################")
+        print("###########################################################")
         opc = int(input())
         switch_case(opc)
 
@@ -243,11 +260,14 @@ def main():
     uri = ns.lookup("auction.house")
     obj_servidor = Pyro5.api.Proxy(uri)
     print("Auction house is ready.")
-    print("-------------------------------------")
+    print("###########################################################")
     print("## bem-vindo à casa de leilões! por favor, insira seu nome:")
     print("## por favor, insira seu nome:")
     client_name = input()
     login(client_name, obj_servidor)
+    print("###########################################################")
+
+
     
 if __name__=="__main__":
     main()
