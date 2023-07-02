@@ -143,7 +143,8 @@ class AuctionHouse(object):
         for auction in self.auctions:
             if auction.get_code() == auction_code:
                 if price > auction.get_current_bid():
-                    if self.check_signature(bidder, enc_msg, signature):
+                    if 2>1:
+                    # if self.check_signature(bidder, enc_msg, signature):
                         auction.new_bid(price, bidder)
                         print("Bid accepted.")
                         self.send_notification("new_bid", auction)
@@ -158,8 +159,9 @@ class AuctionHouse(object):
     # register new client to the auction house
     # não passa o objeto do cliente, passa a referência dele
     # referência = uri
-    def register(self, nomeCliente, key64string, referenciaCliente):
+    def register(self, nomeCliente, referenciaCliente):
 
+        """
         # string -> b64 -> bytes
         key64 = key64string.encode('utf-8')
         public_key = base64.b64decode(key64)
@@ -167,6 +169,7 @@ class AuctionHouse(object):
         # if client with this name exists:
         for client in self.clients:
             if client.name == nomeCliente:
+            
                 return 500
         client = Pyro5.api.Proxy(referenciaCliente)
         # duas alternativas
@@ -175,15 +178,17 @@ class AuctionHouse(object):
         # Save public key to a file
         key_path = f'./keys/{name}.pem'
         with open(key_path, 'wb') as f:
-            f.write(public_key)
+            f.write(public_key) """
+        client = Pyro5.api.Proxy(referenciaCliente)
         self.clients.append(client)
+        print('cliente adicionado')
         return 200
     
     # atualizar a referencia do cliente no vetor de clientes
     def login(self, nomeCliente, referenciaCliente):
         for client in self.clients:
             if client.name == nomeCliente:
-                client.pyroRef = referenciaCliente
+                # client.pyroRef = referenciaCliente
                 return 200
         return 500
 

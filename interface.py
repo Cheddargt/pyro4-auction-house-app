@@ -14,20 +14,29 @@ daemon = Pyro5.server.Daemon()
 
 sys.excepthook = Pyro5.errors.excepthook
 
-
+@Pyro5.api.expose
+@Pyro5.api.callback
 class Client(object):
     def __init__(self, name):
         self.name = name
         self.pyroRef = ''
         self.bids = {}
 
-    @Pyro5.api.expose
-    @Pyro5.api.callback
+
     def send_message(self, message):
         print(message)
 
-    def loopThread(daemon):
+    def loopThread(self, daemon):
         daemon.requestLoop()
+
+    """ 
+    File "/home/ghzeni/.local/lib/python3.10/site-packages/Pyro5/client.py", line 275, in _pyroInvoke
+    raise data  # if you see this in your traceback, you should probably inspect the remote traceback as well
+    AttributeError: remote object 'PYRO:obj_84cacf69426844a4ba0deb211b316cf1@localhost:42065' has no exposed attribute or method 'name' 
+    """
+    
+    def getName(self):
+        return self.name
     
     def setPyroRef(self, ref):
         self.pyroRef = ref
@@ -56,51 +65,51 @@ def register(nomeCliente, objetoServidor):
     cliente = Client(nomeCliente)
     referenciaCliente = daemon.register(cliente)
     
-    # Generate private/public key pair
-    key = RSA.generate(2048)
+    # # Generate private/public key pair
+    # key = RSA.generate(2048)
 
-    # Save private key to a file
-    private_key = key.export_key()
-    key_path = f'{nomeCliente}.pem'
+    # # Save private key to a file
+    # private_key = key.export_key()
+    # key_path = f'{nomeCliente}.pem'
 
-    # Get public key
-    public_key = key.publickey().export_key()
+    # # Get public key
+    # public_key = key.publickey().export_key()
 
-    """ 
-    print("Digite sua chave pública:")
-    password = input()
+    # """ 
+    # print("Digite sua chave pública:")
+    # password = input()
 
-    print("Digite a URI do objeto remoto")
-    uri = input()
-    """
+    # print("Digite a URI do objeto remoto")
+    # uri = input()
+    # """
 
-    # bytes -> b64 -> string
-    key_64 = base64.b64encode(public_key)
-    key_string = key_64.decode('utf-8')
+    # # bytes -> b64 -> string
+    # key_64 = base64.b64encode(public_key)
+    # key_string = key_64.decode('utf-8')
 
     # seu nome, sua chave pública e a URI do objeto remoto (do cliente)
-    res = objetoServidor.register(nomeCliente, key_string, referenciaCliente)
+    res = objetoServidor.register(nomeCliente, referenciaCliente)
     
     if res==200:
-        with open(key_path, 'wb') as f:
-            f.write(private_key)
+        # with open(key_path, 'wb') as f:
+        #     f.write(private_key)
         print("Registration successful!")
         print("-------------------------------------")
         thread = threading.Thread(target=cliente.loopThread, args=(daemon, ))
         thread.daemon = True
         thread.start()
-        main_menu()
+        main_menu(cliente, objetoServidor)
     elif res==500:
         print("Registration failed. Client already exists.")
         print("-------------------------------------")
-        login()
+        login(cliente, objetoServidor)
 
 def login(nomeCliente, objetoServidor):
 
     cliente = Client(nomeCliente)
     referenciaCliente = daemon.register(cliente)
-    cliente.setPyroRef(referenciaCliente)
-    # cliente.pyroRef = referenciaCliente
+    # cliente.setPyroRef(referenciaCliente)
+    cliente.pyroRef = referenciaCliente
 
     res = objetoServidor.login(nomeCliente, referenciaCliente)
 
