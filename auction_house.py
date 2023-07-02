@@ -1,36 +1,32 @@
 from __future__ import print_function
 import time
-import timer
-import json
-import time
 import Pyro5.api
 import threading
 from Crypto.PublicKey import RSA
 from Crypto.Signature import PKCS1_v1_5
 from Crypto.Hash import SHA256
 import base64
+import json
+import sys
 
+sys.excepthook = Pyro5.errors.excepthook
 
 
 # define the countup func.
 def countupwards():
+    ns = Pyro5.api.locate_ns()
+    uri = ns.lookup("auction.house")
+    obj_servidor = Pyro5.api.Proxy(uri)
     t = 1
     while t:
         mins, secs = divmod(t, 60)
         timer = '{:02d}:{:02d}'.format(mins, secs)
-        print(timer, end="\r")
         time.sleep(1)
         t += 1
-        # TODO: adicionar chamada de função que verifica
-        auction_house = Pyro4.Proxy("PYRONAME:auction.house")
-        auction_house.update_timers()
         print(timer, end="\r")
+        obj_servidor.update_timers()
 
     return 0
-
-thread = threading.Thread(target=countupwards, args=())
-print("Timer started.")
-thread.start()
 
 # um lance em um produto
 # só é adicionado ao objeto do produto se for maior que o lance atual
@@ -108,62 +104,100 @@ class Auction(object):
         return f"Auction: {self.name}\nStart Price: {self.start_price}\nCurrent Bid: {self.current_bid}\nCurrent Bidder: {self.current_bidder}\nBids: {self.bids}"
 
 @Pyro5.api.expose
-@Pyro5.behavior(instance_mode="single")
+@Pyro5.api.behavior(instance_mode="single")
 class AuctionHouse(object):
     def __init__(self):
         self.clients = []
         self.auctions = []
 
-    def create_auction(self, client_name, code, name, description, initial_price, end_time):
-        auction = Auction(client_name, code, name, description, initial_price, end_time)
+    def check_signature(self, bidder, enc_msg, signature):
+        # Load public key from file
+        key_path = f'./keys/{bidder}.pem'
+        with open('public.pem', 'rb') as f:
+            public_key = RSA.import_key(f.read())
+
+        # Verify signature
+        # Verify the signature using the public key
+        hash = SHA256.new(enc_msg)
+        verifier = PKCS1_v1_5.new(public_key)
+        is_valid = verifier.verify(hash, signature)
+        return is_valid
+
+    def create_auction(self, clientRef, code, name, description, initial_price, end_time):
+        auction = Auction(clientRef, code, name, description, initial_price, end_time)
         self.auctions.append(auction)
         # talvez precise alterar pra vetor
         self.send_notification("new_auction", auction)
         print("Auction created successfully!")
         return True
 
+    # allow a client to bid in an auction
+    """ res_codes:
+    200 = success
+    400 = auction not found
+    500 = bid lower than current bid
+    503 = auction closed
+    505 = invalid signature
+     """
+    def bid_auction (self, auction_code, price, bidder, enc_msg, signature):
+        for auction in self.auctions:
+            if auction.get_code() == auction_code:
+                if price > auction.get_current_bid():
+                    if self.check_signature(bidder, enc_msg, signature):
+                        auction.new_bid(price, bidder)
+                        print("Bid accepted.")
+                        self.send_notification("new_bid", auction)
+                        return 200
+                    else:
+                        return 505
+                else:
+                    return 500
+            
+        return 503
+    
     # register new client to the auction house
     # não passa o objeto do cliente, passa a referência dele
     # referência = uri
-    def register(self, referencia_cliente, key64):
-        
+    def register(self, nomeCliente, key64string, referenciaCliente):
 
-        message_bytes = base64.b64decode(key64)
-        key = message_bytes.decode('ascii')
+        # string -> b64 -> bytes
+        key64 = key64string.encode('utf-8')
+        public_key = base64.b64decode(key64)
 
         # if client with this name exists:
         for client in self.clients:
-            if client.name == name:
+            if client.name == nomeCliente:
                 return 500
-        client = Pyro5.api.Proxy(referencia_cliente)
+        client = Pyro5.api.Proxy(referenciaCliente)
         # duas alternativas
-        name = client.getName()
+        # name = client.getName()
         name = client.name
         # Save public key to a file
         key_path = f'./keys/{name}.pem'
         with open(key_path, 'wb') as f:
-            f.write(key)
+            f.write(public_key)
         self.clients.append(client)
-        client.send_message("Registrado com sucesso!")
         return 200
     
-    def login(self, name):
+    # atualizar a referencia do cliente no vetor de clientes
+    def login(self, nomeCliente, referenciaCliente):
         for client in self.clients:
-            if client.name == name:
+            if client.name == nomeCliente:
+                client.pyroRef = referenciaCliente
                 return 200
         return 500
-       
-    def update_timers(self):
-        for auction in self.auctions:
-            auction.end_time -= 1
-            if auction.end_time <= 0:
-                self.auction_finished(auction)
 
     def auction_finished(self, auction):
         self.send_notification("auction_finished", auction)
         self.auctions.remove(auction)
         print("Auction finished successfully!")
         return True
+
+    def update_timers(self):
+        for auction in self.auctions:
+            auction.end_time -= 1
+            if auction.end_time <= 0:
+                self.auction_finished(auction)
 
     # check existing registration in auction house
     def check_registration(self, name):
@@ -183,19 +217,6 @@ class AuctionHouse(object):
                 auctions.append(auction.get_auction_as_json())
             return auctions           
 
-    def check_signature(self, bidder, enc_msg, signature):
-        # Load public key from file
-        key_path = f'./keys/{bidder}.pem'
-        with open('public.pem', 'rb') as f:
-            public_key = RSA.import_key(f.read())
-
-        # Verify signature
-        # Verify the signature using the public key
-        hash = SHA256.new(enc_msg)
-        verifier = PKCS1_v1_5.new(public_key)
-        is_valid = verifier.verify(hash, signature)
-        return is_valid
-
     # show bids from a specific client
     def get_bids(self, client_name):
         for client in self.clients:
@@ -209,28 +230,6 @@ class AuctionHouse(object):
                 return client.bids
         else:
             print("Client not found.")
-
-    # allow a client to bid in an auction
-    # 200 = success
-    # 400 = auction not found
-    # 500 = bid lower than current bid
-    # 503 = auction closed
-    # 505 = invalid signature
-    def bid_auction (self, auction_code, price, bidder, enc_msg, signature):
-        for auction in self.auctions:
-            if auction.get_code() == auction_code:
-                if price > auction.get_current_bid():
-                    if self.check_signature(bidder, enc_msg, signature):
-                        auction.new_bid(price, bidder)
-                        print("Bid accepted.")
-                        self.send_notification("new_bid", auction)
-                        return 200
-                    else:
-                        return 505
-                else:
-                    return 500
-            
-        return 503
 
     def send_notification(self, type, auction):
         #TODO: notificações pra: leilão criado, lance dado, leilão finalizado
@@ -278,10 +277,6 @@ class AuctionHouse(object):
                         client.send_message(f'## client: {auction.get_current_bidder()}')
                         client.send_message("################################")
 
-
-
-        
-
 def main():
  
     # registra a aplicação do servidor no serviço de nomes
@@ -289,8 +284,14 @@ def main():
     ns = Pyro5.api.locate_ns()
     uri = daemon.register(AuctionHouse)
     ns.register("auction.house", uri)
-    daemon.requestLoop()
     print("Auction House is up.")
+    
+    thread = threading.Thread(target=countupwards, args=())
+    print("Timer started.")
+    thread.start()
+
+    daemon.requestLoop()
+    
 
 if __name__=="__main__":
     main()

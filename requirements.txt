@@ -1,2 +1,2 @@
-Pyro4 
+Pyro5
 pycryptodome

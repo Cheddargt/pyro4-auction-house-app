@@ -1,0 +1,5 @@
+- quando um cliente criar um leilão ou dar um lance, como eu identifico esse cliente?
+    - clientref?
+- eu guardo a referencia do cliente num atributo dele mesmo?
+- no registro, eu identifico ele pela uri do pyro dele?
+    - não porque vai mudar quando ele sair e entrar
