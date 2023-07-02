@@ -1,6 +1,6 @@
 ## TODO
-- [ ] Fix 'ver seus lances' not showing user bids
-- [ ] Fix notification service
+- [x] Fix 'ver seus lances' not showing user bids
+- [x] Fix notification service
 - [ ] Fix signature service
 
 
