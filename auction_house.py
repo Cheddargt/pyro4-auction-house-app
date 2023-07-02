@@ -60,11 +60,13 @@ class Auction(object):
         # RE: é melhor só o nome porque já guardo os clientes registrados na auctionhouse
         self.subscribers = [client_name]
 
-    def new_bid(self, price, bidder_name):
+    def new_bid(self, price, clientRef):
+        client = Pyro5.api.Proxy(clientRef)
+        
         self.current_bid = price
-        self.current_bidder = bidder_name
-        self.subscribers.append(bidder_name)
-        self.bids.append(Bid(bidder_name, price))
+        self.current_bidder = client.getName()
+        self.subscribers.append(client)
+        self.bids.append(Bid(client.getName(), price))
         
     def subscribe(self, client_name):
         # TODO: verificar se é melhor name ou client em si
@@ -139,13 +141,13 @@ class AuctionHouse(object):
     503 = auction closed
     505 = invalid signature
      """
-    def bid_auction (self, auction_code, price, bidder, enc_msg, signature):
+    def bid_auction (self, clientRef, auction_code, price, message, signature):
         for auction in self.auctions:
             if auction.get_code() == auction_code:
                 if price > auction.get_current_bid():
                     if 2>1:
                     # if self.check_signature(bidder, enc_msg, signature):
-                        auction.new_bid(price, bidder)
+                        auction.new_bid(price, clientRef)
                         print("Bid accepted.")
                         self.send_notification("new_bid", auction)
                         return 200
@@ -179,16 +181,21 @@ class AuctionHouse(object):
         key_path = f'./keys/{name}.pem'
         with open(key_path, 'wb') as f:
             f.write(public_key) """
-        client = Pyro5.api.Proxy(referenciaCliente)
-        self.clients.append(client)
+        for clientRef in self.clients:
+            client = Pyro5.api.Proxy(clientRef)
+            if client.getName() == nomeCliente:
+                return 500
+
+        self.clients.append(referenciaCliente)
         print('cliente adicionado')
         return 200
     
     # atualizar a referencia do cliente no vetor de clientes
     def login(self, nomeCliente, referenciaCliente):
-        for client in self.clients:
-            if client.name == nomeCliente:
-                # client.pyroRef = referenciaCliente
+        for clientRef in self.clients:
+            client = Pyro5.api.Proxy(clientRef)
+            if client.getName() == nomeCliente:
+                client.setPyroRef(referenciaCliente)
                 return 200
         return 500
 
@@ -247,7 +254,8 @@ class AuctionHouse(object):
             # vamos pegar o proxy do cliente e chamar o método de notificação
         # encontrar o cliente pelo nome usando o pyro4
         if (type == "new_auction"):
-            for client in self.clients:
+            for clientRef in self.clients:
+                client = Pyro5.api.Proxy(clientRef)
                 client.send_message("################################")
                 client.send_message("# [!] new auction has started! #")
                 client.send_message("################################")
@@ -255,13 +263,15 @@ class AuctionHouse(object):
             # pode dar problema em referenciar objeto que não tá mais na lista de auctions
             # testado: não deu problema!
             subscribers = auction.get_subscribers()
-            for sub in subscribers:
-                for client in self.clients:
-                    if client.name == sub:
+            for subRef in subscribers:
+                for clientRef in self.clients:
+                    client = Pyro5.api.Proxy(clientRef)
+                    if subRef == clientRef:
                         client.send_message("##########################################")
                         client.send_message("##    [!] auction has finished!         ##")
                         client.send_message("------------------------------------------")
-                        if auction.get_current_bidder() == sub:
+                        # TODO: alterar pra bidderRef
+                        if auction.get_current_bidder() == subRef:
                             client.send_message("##    [✓] you won bought                ##")
                             client.send_message(f' {auction.get_name()} for {auction.get_current_bid()}')
                             client.send_message("##########################################")
@@ -271,9 +281,9 @@ class AuctionHouse(object):
                             client.send_message("##########################################")
         elif (type == "new_bid"):
             subscribers = auction.get_subscribers()
-            for sub in subscribers:
-                for client in self.clients:
-                    if client.name == sub:
+            for subRef in subscribers:
+                for clientRef in self.clients:
+                    if subRef == clientRef:
                         client.send_message("################################")
                         client.send_message("# [!] a new bid has been made! #")
                         client.send_message("--------------------------------")

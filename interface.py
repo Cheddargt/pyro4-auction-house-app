@@ -14,14 +14,14 @@ daemon = Pyro5.server.Daemon()
 
 sys.excepthook = Pyro5.errors.excepthook
 
+# cliente precisa ter: name, pyro_ref, bids
 @Pyro5.api.expose
 @Pyro5.api.callback
 class Client(object):
     def __init__(self, name):
         self.name = name
-        self.pyroRef = ''
+        self.pyroRef = None
         self.bids = {}
-
 
     def send_message(self, message):
         print(message)
@@ -38,17 +38,29 @@ class Client(object):
     def getName(self):
         return self.name
     
+    def setName(self, name):
+        self.name = name
+
     def setPyroRef(self, ref):
         self.pyroRef = ref
+
+    def getPyroRef(self):
+        return self.pyroRef
+    
+    def getBids(self):
+        return self.bids
+    
+    def setBids(self, bids):
+        self.bids = bids
 
     # pra printar o objeto
     def __str__(self):
         return f"Name: {self.name}\nBids: {self.bids}"
 
-def get_signature(message):
+def get_signature(cliente, message):
 
     # Load private key from file
-    key_path = f'{client_name}.pem'
+    key_path = f'{cliente.getName()}.pem'
     with open(key_path, 'rb') as f:
         private_key = RSA.import_key(f.read())
 
@@ -108,8 +120,8 @@ def login(nomeCliente, objetoServidor):
 
     cliente = Client(nomeCliente)
     referenciaCliente = daemon.register(cliente)
-    # cliente.setPyroRef(referenciaCliente)
-    cliente.pyroRef = referenciaCliente
+    cliente.setPyroRef(referenciaCliente)
+    # cliente.pyroRef = referenciaCliente
 
     res = objetoServidor.login(nomeCliente, referenciaCliente)
 
@@ -138,7 +150,7 @@ def create_auction(cliente, objetoServidor):
     initial_price = float(input())
     print("Digite o tempo de término do leilão (em segundos):")
     end_time = int(input())
-    if objetoServidor.create_auction(cliente.pyroRef, auction_code, name, description, initial_price, end_time):
+    if objetoServidor.create_auction(cliente.getPyroRef(), auction_code, name, description, initial_price, end_time):
         print("####      leilão criado com sucesso!   ###")
         print("##########################################")
     else:
@@ -151,9 +163,9 @@ def bid_auction(cliente, objetoServidor):
     print("Digite o valor do lance:")
     price = float(input())
     message = b'assinatura verificada'
-    signature = get_signature(message)
+    signature = get_signature(cliente, message)
     # Todo lance deve ser assinado digitalmente pelo cliente utilizando sua chave privada.
-    res = objetoServidor.bid_auction(cliente.pyroRef, auction_code, price, message, signature)
+    res = objetoServidor.bid_auction(cliente.getPyroRef(), auction_code, price, message, signature)
     if (res == 200):
         print("##       Bid placed successfully!       ##")
         print("##########################################")
@@ -186,7 +198,7 @@ def show_auctions(objetoServidor):
         print("##########################################")           
 
 def show_bids(cliente, objetoServidor):
-    bids = objetoServidor.get_bids(cliente.pyroRef)
+    bids = objetoServidor.get_bids(cliente.getPyroRef())
     print("-------------------------------------")
     print(bids)
 
