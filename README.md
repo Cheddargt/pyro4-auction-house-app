@@ -1,7 +1,8 @@
 ## TODO
 - [x] Fix 'ver seus lances' not showing user bids
 - [x] Fix notification service
-- [ ] Fix signature service
+- [x] Fix signature service
+- [x] Add notification to person saying the item has not been sold.
 
 
 ## How to Run

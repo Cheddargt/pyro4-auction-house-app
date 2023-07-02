@@ -61,6 +61,7 @@ class Bid(object):
 
 class Auction(object):
     def __init__(self, clientName, code, name, description, initialPrice, endTime):
+        self.clientName = clientName
         self.subscribers = [clientName]
         self.code = code
         self.name = name
@@ -86,6 +87,9 @@ class Auction(object):
     def getName(self):
         return self.name
     
+    def getClientName(self):
+        return self.clientName
+
     def getInitialPrice(self):
         return self.initialPrice
     
@@ -138,15 +142,22 @@ class AuctionHouse(object):
         self.listaClientes = []
         self.auctions = []
 
-    def checkSignature(self, bidder, enc_msg, signature):
+    def checkSignature(self, clientName, sign64string):
 
-        key_path = f'./keys/{bidder}.pem'
-        with open('public.pem', 'rb') as f:
+        message = b'assinatura verificada'
+
+        # string -> b64 -> bytes
+        sign64 = sign64string.encode('utf-8')
+        signature = base64.b64decode(sign64)
+        
+        key_path = f'./keys/{clientName}.pem'
+        with open(key_path, 'rb') as f:
             public_key = RSA.import_key(f.read())
 
-        hash = SHA256.new(enc_msg)
+        hash = SHA256.new(message)
         verifier = PKCS1_v1_5.new(public_key)
         is_valid = verifier.verify(hash, signature)
+
         return is_valid
 
     def createAuction(self, clientName, code, name, description, initialPrice, endTime):
@@ -163,50 +174,41 @@ class AuctionHouse(object):
     503 = auction closed
     505 = invalid signature
      """
-    def bidAuction (self, clientName, auctionCode, price, message, signature):
+    def bidAuction (self, clientName, auctionCode, price, sign64string):
         for auction in self.auctions:
             if auction.getCode() == auctionCode:
-                if price > auction.getCurrentBid():
-                    # TODO:
-                    # if self.check_signature(bidder, enc_msg, signature):
-                    if 2>1:
-                        auction.newBid(price, clientName)
-                        for clienteServidor in self.listaClientes:
-                            if clientName == clienteServidor.getName():
-                                client = Pyro5.api.Proxy(clienteServidor.getPyroRef())
-                                client.addBid(auction.getName(), auctionCode, price)
+                if clientName != auction.getClientName():
+                    if price > auction.getCurrentBid():
+                        # TODO:
+                        if self.checkSignature(clientName, sign64string):
+                            print (f'Assinatura de {clientName} verificada.')
+                            auction.newBid(price, clientName)
+                            for clienteServidor in self.listaClientes:
+                                if clientName == clienteServidor.getName():
+                                    client = Pyro5.api.Proxy(clienteServidor.getPyroRef())
+                                    client.addBid(auction.getName(), auctionCode, price)
 
-                        # notificar subscribers que um novo lance foi feito
-                        self.sendNotification("new_bid", auction)
-                        return 200
+                            self.sendNotification("new_bid", auction)
+                            return 200
+                        else:
+                            return 505
                     else:
-                        return 505
+                        return 500
                 else:
-                    return 500
-            
+                    return 510
         return 503
     
-    def register(self, nomeCliente, referenciaCliente):
+    def register(self, nomeCliente, referenciaCliente, key64string):
 
-        """
         # string -> b64 -> bytes
         key64 = key64string.encode('utf-8')
         public_key = base64.b64decode(key64)
 
-        # if client with this name exists:
-        for client in self.clients:
-            if client.name == nomeCliente:
-            
-                return 500
-        client = Pyro5.api.Proxy(referenciaCliente)
-        # duas alternativas
-        # name = client.getName()
-        name = client.name
         # Save public key to a file
-        key_path = f'./keys/{name}.pem'
+        key_path = f'./keys/{nomeCliente}.pem'
         with open(key_path, 'wb') as f:
             f.write(public_key) 
-        """
+
         for clienteServidor in self.listaClientes:
             if clienteServidor.getName() == nomeCliente:
                 return 500
@@ -253,16 +255,20 @@ class AuctionHouse(object):
                     return (None)
                 return (clientBids)
 
-
     def sendNotification(self, type, auction):
 
         if (type == "new_auction"):
             for clienteServidor in self.listaClientes:
                 client = Pyro5.api.Proxy(clienteServidor.pyroRef)
-                client.sendMessage("###########################################################")
-                client.sendMessage("<<<<<<<<<<<<< [!] new auction has started! >>>>>>>>>>>>>>>>")
-                client.sendMessage("###########################################################")
-
+                client.sendMessage("===========================================================")
+                client.sendMessage("## [!] new auction has started! ###########################")
+                client.sendMessage("-----------------------------------------------------------")
+                client.sendMessage(f'>> Item: {auction.getName()}')
+                client.sendMessage(f'>> Código: {auction.getCode()}')
+                client.sendMessage(f'>> Valor inicial: {auction.getInitialPrice()}')
+                client.sendMessage("-----------------------------------------------------------")
+                client.sendMessage("## pressione '4' para dar um lance agora! #################")
+                client.sendMessage("===========================================================")
         elif (type == "auction_finished"):
             subscribers = auction.getSubscribers()
             currentBidderName = auction.getCurrentBidder()
@@ -271,17 +277,21 @@ class AuctionHouse(object):
                     client = Pyro5.api.Proxy(clienteServidor.getPyroRef())
 
                     if clienteServidor.getName() == subscriberName:
-                        client.sendMessage("###########################################################")
-                        client.sendMessage("##    [!] auction has finished!         ###################")
+                        client.sendMessage("===========================================================")
+                        client.sendMessage("## [!] auction has finished!         ----------------------")
                         client.sendMessage("-----------------------------------------------------------")
                         if currentBidderName == subscriberName:
-                            client.sendMessage("##    [✓] you bought                ##################")
-                            client.sendMessage(f'## {auction.getName()} for {auction.getCurrentBid()}')
-                            client.sendMessage("###########################################################")
+                            client.sendMessage(f'## [✓] you bought: {auction.getName()}')
+                            client.sendMessage(f'## for {auction.getCurrentBid()}')
+                            client.sendMessage("===========================================================")
+                        elif auction.getCurrentBidder() == '':
+                            client.sendMessage(f'## [X] Seu item: {auction.getName()}')
+                            client.sendMessage(f'## não foi vendido :(                                     ')
+                            client.sendMessage("===========================================================")
                         else:
-                            client.sendMessage(f'##    [$] {auction.getName()} sold to:')
-                            client.sendMessage(f'## {currentBidderName} for {auction.getCurrentBid()}')
-                            client.sendMessage("###########################################################")
+                            client.sendMessage(f'## [$] {auction.getName()} sold to: {currentBidderName}')
+                            client.sendMessage(f'## for: {auction.getCurrentBid()}')
+                            client.sendMessage("===========================================================")
 
         elif (type == "new_bid"):
             subscribers = auction.getSubscribers()
@@ -292,13 +302,13 @@ class AuctionHouse(object):
 
                     # TODO: clienteServidor.name == ...
                     if clienteServidor.getName() == subscriberName:
-                        client.sendMessage("###########################################################")
-                        client.sendMessage("# [!] a new bid has been made! #")
+                        client.sendMessage("===========================================================")
+                        client.sendMessage("# [!] a new bid has been made! ############################")
                         client.sendMessage("-----------------------------------------------------------")
                         client.sendMessage(f'## item:   {auction.getName()}')
                         client.sendMessage(f'## price:   {auction.getCurrentBid()}')
                         client.sendMessage(f'## client: {currentBidderName}')
-                        client.sendMessage("###########################################################")
+                        client.sendMessage("===========================================================")
 
 def main():
  

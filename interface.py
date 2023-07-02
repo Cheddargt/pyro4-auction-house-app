@@ -64,7 +64,9 @@ class Client(object):
     def __str__(self):
         return f"Name: {self.name}\nBids: {self.bids}"
 
-def getSignature(cliente, message):
+def getSignature(cliente):
+
+    message = b'assinatura verificada'
 
     # Load private key from file
     key_path = f'{cliente.getName()}.pem'
@@ -76,23 +78,37 @@ def getSignature(cliente, message):
     signer = PKCS1_v1_5.new(private_key)
     signature = signer.sign(hash)
 
-    return signature
+    # bytes -> b64 -> string
+    sign_64 = base64.b64encode(signature)
+    sign_string = sign_64.decode('utf-8')
+
+    return sign_string
+
+def createKeyPair(nomeCliente):
+
+    # Generate private/public key pair
+    key = RSA.generate(2048)
+
+    # Save private key to a file
+    private_key = key.export_key()
+    key_path = f'{nomeCliente}.pem'
+    with open(key_path, 'wb') as f:
+        f.write(private_key)
+
+    # Get public key
+    public_key = key.publickey().export_key()
+
+    # bytes -> b64 -> string
+    key_64 = base64.b64encode(public_key)
+    key_string = key_64.decode('utf-8')
+
+    return key_string
 
 def register(nomeCliente, objetoServidor):
 
 
     cliente = Client(nomeCliente)
     referenciaCliente = daemon.register(cliente)
-    
-    # # Generate private/public key pair
-    # key = RSA.generate(2048)
-
-    # # Save private key to a file
-    # private_key = key.export_key()
-    # key_path = f'{nomeCliente}.pem'
-
-    # # Get public key
-    # public_key = key.publickey().export_key()
 
     # """ 
     # print("Digite sua chave pública:")
@@ -102,19 +118,16 @@ def register(nomeCliente, objetoServidor):
     # uri = input()
     # """
 
-    # # bytes -> b64 -> string
-    # key_64 = base64.b64encode(public_key)
-    # key_string = key_64.decode('utf-8')
+    key64string = createKeyPair(nomeCliente)
 
-    # seu nome, sua chave pública e a URI do objeto remoto (do cliente)
-    print (referenciaCliente)
-    res = objetoServidor.register(nomeCliente, referenciaCliente)
+    # nome do cliente, URI do objeto remoto do cliente e chave pública do cliente
+    res = objetoServidor.register(nomeCliente, referenciaCliente, key64string)
     
     if res==200:
         # with open(key_path, 'wb') as f:
         #     f.write(private_key)
         print("## Registrado com sucesso!! ###############################")
-        print("###########################################################")
+        print("-----------------------------------------------------------")
 
         thread = threading.Thread(target=cliente.loopThread, args=(daemon, ))
         thread.daemon = True
@@ -144,6 +157,7 @@ def login(nomeCliente, objetoServidor):
         thread.start()
         mainMenu(cliente, objetoServidor)
     elif res==500:
+        print("-----------------------------------------------------------")
         print("## Registro não encontrado. Criando novo registro... ######")
         register(nomeCliente, objetoServidor)
     else:
@@ -169,16 +183,19 @@ def createAuction(cliente, objetoServidor):
         print("###########################################################")
 
 def bidAuction(cliente, objetoServidor):
+
     print("Digite o código do item em leilão:")
     auction_code = input()
     print("Digite o valor do lance:")
     price = float(input())
-    message = b'assinatura verificada'
-    # signature = getSignature(cliente, message)
-    # Todo lance deve ser assinado digitalmente pelo cliente utilizando sua chave privada.
-    res = objetoServidor.bidAuction(cliente.getName(), auction_code, price, message, 'signature')
+
+    signature = getSignature(cliente)
+
+    res = objetoServidor.bidAuction(cliente.getName(), auction_code, price, signature)
+
     if (res == 200):
-        print("##       Bid placed successfully!       ##")
+        print("## Signature verified! ####################################")
+        print("## Bid placed successfully!  ##############################")
         print("###########################################################")
     elif (res == 505):
         print("##    Bid failed. Invalid signature.    ##")
@@ -189,6 +206,9 @@ def bidAuction(cliente, objetoServidor):
     elif (res == 503):
         print("##    Bid failed. Auction not found.    ##")
         print("###########################################################")
+    elif (res == 510):
+        print("## Você não pode dar lance em um leilão criado por você. ##")
+        print("###########################################################")
     else:
         print("##      Bid failed. Server error.       ##")
         print("###########################################################")
@@ -198,15 +218,15 @@ def showAuctions(objetoServidor):
     auctions = objetoServidor.showAuctions()
     print("###########################################################")
     print("## Leilões em andamento: ##################################")
-    print("------------------------------------------")
+    print("-----------------------------------------------------------")
 
     if auctions != None:
         for auction in auctions:
             print(auction)
         print("###########################################################")           
     else:
-        print("## Nenhum leilão em andamento. ############################")
-        print("###########################################################")           
+        print("## Nenhum leilão em andamento. ----------------------------")
+        print("-----------------------------------------------------------")           
 
 def showBids(cliente, objetoServidor):
     bids = objetoServidor.getBids(cliente.getName())

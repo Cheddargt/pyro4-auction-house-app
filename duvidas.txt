@@ -15,5 +15,8 @@ dar um lance, deslogar e logar de novo? o servidor identifica que é ele mesmo?
     - isso precisa existir porque toda vez que eu precisar usar a informação do nome do cliente eu acesso
     o servidor, e quando eu precisar 
 
-
+- eu tenho que mandar a mensagem E a assinatura?
+- a assinatura eu converti de bytes pra string por b64
+- preciso fazer a mesma coisa com a mensagem?
+- não posso só declarar ela na entrada e depois de novo na saída? hardcoded?
 
