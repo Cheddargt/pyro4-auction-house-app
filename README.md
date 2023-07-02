@@ -27,20 +27,12 @@ To run the auction house application, follow these steps:
      ```
 
    **Terminal 2:**
-   - Navigate to the project directory:
-     ```
-     cd pyro4-auction-house-app
-     ```
    - Start the auction house server by running the following command:
      ```
      python auction_house.py
      ```
 
    **Terminal 3:**
-   - Navigate to the project directory:
-     ```
-     cd auction-house-app
-     ```
    - Start the interface for bidders by running the following command:
      ```
      python interface.py
@@ -48,7 +40,7 @@ To run the auction house application, follow these steps:
 
 4. Follow the prompts in the bidder interface to interact with the auction house. You can create bidders, view ongoing auctions, place bids, etc.
 
-**Note:** Make sure the Pyro4 name server and the auction house server are running before starting the interface for bidders.
+**Note:** Make sure the Pyro5 name server and the auction house server are running before starting the interface for bidders.
 
 That's it! You can now run the auction house application and participate in auctions.
 
@@ -59,7 +51,7 @@ That's it! You can now run the auction house application and participate in auct
 - [x] Execute um processo servidor e ao menos três processos clientes. Esses processos podem ser executados na mesma máquina. 
 - [x] Utilize PyRO (Python Remote Objects) para prover a comunicação entre os clientes e o servidor do leilão. 
 - [x] Cada cliente pode criar e participar de leilões. 
-- [ ] Haverá apenas um serviço de nomes na máquina. O processo servidor criará esse serviço de nomes e registrará a aplicação Leilão nele. 
+- [x] Haverá apenas um serviço de nomes na máquina. O processo servidor criará esse serviço de nomes e registrará a aplicação Leilão nele. 
 
 ### Métodos disponíveis no servidor (valor 2,0): 
 - [x] Cadastro de usuário (valor 0,3): ao acessar o sistema pela primeira vez, cada cliente deve informar seu nome, sua chave pública e a URI do objeto remoto. Nesse cadastro, o cliente automaticamente atuará como subscriber, registrando interesse em receber notificações do servidor quando novos produtos para leilão forem cadastrados; 
