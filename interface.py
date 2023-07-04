@@ -15,6 +15,7 @@ daemon = Pyro5.server.Daemon()
 sys.excepthook = Pyro5.errors.excepthook
 
 # cliente precisa ter: name, pyro_ref, bids
+# TODO: não pode estar na interface.py
 @Pyro5.api.expose
 @Pyro5.api.callback
 class Client(object):
@@ -52,6 +53,7 @@ class Client(object):
     
     def addBid(self, auctionName, auctionCode, price):
 
+        # TODO: ajeitar ordem
         newBid = {
             "Nome": auctionCode,
             "Código": auctionName,
