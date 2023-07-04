@@ -12,7 +12,6 @@ import sys
 sys.excepthook = Pyro5.errors.excepthook
 daemon = Pyro5.server.Daemon()
 
-
 # define the countup func.
 def countupwards():
 
@@ -116,23 +115,37 @@ class Auction(object):
     def __str__(self):
         return f"Auction: {self.name}\nStart Price: {self.start_price}\nCurrent Bid: {self.currentBid}\nCurrent Bidder: {self.currentBidder}\nBids: {self.bids}"
 
-class ClienteServidor(object):
+class Cliente(object):
     def __init__(self, name, pyroRef):
         self.name = name
         self.pyroRef = pyroRef
-  
-    def setPyroRef(self, newRef):
-        self.pyroRef = newRef
+        self.bids = []
 
-    def getPyroRef(self):
-        return self.pyroRef
+    def getName(self):
+        return self.name 
         
     def setName(self, name):
         self.name = name
 
-    def getName(self):
-        return self.name 
+    def getPyroRef(self):
+        return self.pyroRef
+  
+    def setPyroRef(self, newRef):
+        self.pyroRef = newRef
 
+    def addBid(self, auctionName, auctionCode, price):
+
+        # TODO: ajeitar ordem
+        newBid = {
+            "Nome": auctionCode,
+            "Código": auctionName,
+            "Lance": price,
+        }
+
+        self.bids.append(newBid)
+
+    def getBids(self):
+        return self.bids
 
 
 @Pyro5.api.expose
@@ -185,8 +198,7 @@ class AuctionHouse(object):
                             auction.newBid(price, clientName)
                             for clienteServidor in self.listaClientes:
                                 if clientName == clienteServidor.getName():
-                                    client = Pyro5.api.Proxy(clienteServidor.getPyroRef())
-                                    client.addBid(auction.getName(), auctionCode, price)
+                                    clienteServidor.addBid(auction.getName(), auctionCode, price)
 
                             self.sendNotification("new_bid", auction)
                             return 200
@@ -213,14 +225,15 @@ class AuctionHouse(object):
             if clienteServidor.getName() == nomeCliente:
                 return 500
 
-        self.listaClientes.append(ClienteServidor(nomeCliente, referenciaCliente))
+        self.listaClientes.append(Cliente(nomeCliente, referenciaCliente))
         return 200
     
     # atualizar a referencia do cliente na lista do servidor
     def login(self, nomeCliente, referenciaCliente):
         for clienteServidor in self.listaClientes:
             if clienteServidor.name == nomeCliente:
-                clienteServidor.pyroRef = referenciaCliente
+                clienteServidor.setPyroRef(referenciaCliente)
+                # clienteServidor.pyroRef = referenciaCliente
                 return 200
         return 500
 
@@ -249,8 +262,7 @@ class AuctionHouse(object):
     def getBids(self, clientName):
         for clienteServidor in self.listaClientes:
             if clienteServidor.getName() == clientName:
-                client = Pyro5.api.Proxy(clienteServidor.getPyroRef())
-                clientBids = client.getBids()
+                clientBids = clienteServidor.getBids()
                 if clientBids == []:
                     return (None)
                 return (clientBids)

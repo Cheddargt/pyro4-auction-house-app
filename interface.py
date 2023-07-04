@@ -18,60 +18,27 @@ sys.excepthook = Pyro5.errors.excepthook
 # TODO: não pode estar na interface.py
 @Pyro5.api.expose
 @Pyro5.api.callback
-class Client(object):
+class ClientCallback(object):
     def __init__(self, name):
         self.name = name
         self.pyroRef = None
         self.bids = []
 
+    # usados pela professora
+    #####################################
     def sendMessage(self, message):
         print(message)
 
     def loopThread(self, daemon):
         daemon.requestLoop()
+    #####################################
 
-    """ 
-    File "/home/ghzeni/.local/lib/python3.10/site-packages/Pyro5/client.py", line 275, in _pyroInvoke
-    raise data  # if you see this in your traceback, you should probably inspect the remote traceback as well
-    AttributeError: remote object 'PYRO:obj_84cacf69426844a4ba0deb211b316cf1@localhost:42065' has no exposed attribute or method 'name' 
-    """
-    
-    def getName(self):
-        return self.name
-    
-    def setName(self, name):
-        self.name = name
-
-    def setPyroRef(self, ref):
-        self.pyroRef = ref
-
-    def getPyroRef(self):
-        return self.pyroRef
-    
-    def getBids(self):
-        return self.bids
-    
-    def addBid(self, auctionName, auctionCode, price):
-
-        # TODO: ajeitar ordem
-        newBid = {
-            "Nome": auctionCode,
-            "Código": auctionName,
-            "Lance": price,
-        }
-
-        self.bids.append(newBid)
-
-    # pra printar o objeto
-    def __str__(self):
-        return f"Name: {self.name}\nBids: {self.bids}"
-
-def getSignature(cliente):
+def getSignature(nomeCliente):
 
     message = b'assinatura verificada'
 
     # Load private key from file
-    key_path = f'{cliente.getName()}.pem'
+    key_path = f'{nomeCliente}.pem'
     with open(key_path, 'rb') as f:
         private_key = RSA.import_key(f.read())
 
@@ -108,9 +75,9 @@ def createKeyPair(nomeCliente):
 
 def register(nomeCliente, objetoServidor):
 
-
-    cliente = Client(nomeCliente)
-    referenciaCliente = daemon.register(cliente)
+    # TODO: tirar daqui
+    clienteCallback = ClientCallback(nomeCliente)
+    referenciaCliente = daemon.register(clienteCallback)
 
     # """ 
     # print("Digite sua chave pública:")
@@ -131,33 +98,31 @@ def register(nomeCliente, objetoServidor):
         print("## Registrado com sucesso!! ###############################")
         print("-----------------------------------------------------------")
 
-        thread = threading.Thread(target=cliente.loopThread, args=(daemon, ))
+        thread = threading.Thread(target=clienteCallback.loopThread, args=(daemon, ))
         thread.daemon = True
         thread.start()
-        mainMenu(cliente, objetoServidor)
+        mainMenu(nomeCliente, clienteCallback, objetoServidor)
     elif res==500:
         print("## Registro falhou. Cliente já registrado. ################")
         print("###########################################################")
-        login(cliente, objetoServidor)
+        login(nomeCliente, clienteCallback, objetoServidor)
 
 def login(nomeCliente, objetoServidor):
 
-    cliente = Client(nomeCliente)
-    referenciaCliente = daemon.register(cliente)
-    cliente.setPyroRef(referenciaCliente)
-    # cliente.pyroRef = referenciaCliente
+    clienteCallback = ClientCallback(nomeCliente)
+    referenciaCliente = daemon.register(clienteCallback)
 
     res = objetoServidor.login(nomeCliente, referenciaCliente)
 
     if res==200:
         print("## Logado com sucesso! ####################################")
-        print("## Bem-vindo à casa de leilões, " + cliente.name + "!!")
+        print("## Bem-vindo à casa de leilões, " + nomeCliente + "!!")
         print("###########################################################")
 
-        thread = threading.Thread(target=cliente.loopThread, args=(daemon, ))
+        thread = threading.Thread(target=clienteCallback.loopThread, args=(daemon, ))
         thread.daemon = True
         thread.start()
-        mainMenu(cliente, objetoServidor)
+        mainMenu(nomeCliente, clienteCallback, objetoServidor)
     elif res==500:
         print("-----------------------------------------------------------")
         print("## Registro não encontrado. Criando novo registro... ######")
@@ -166,7 +131,7 @@ def login(nomeCliente, objetoServidor):
         print("404 erro")
         exit()
 
-def createAuction(cliente, objetoServidor):
+def createAuction(nomeCliente, clienteCallback, objetoServidor):
     print("Digite o código do produto:")
     auction_code = input()
     print("Digite o nome do produto:")
@@ -177,23 +142,23 @@ def createAuction(cliente, objetoServidor):
     initial_price = float(input())
     print("Digite o tempo de término do leilão (em segundos):")
     end_time = int(input())
-    if objetoServidor.createAuction(cliente.getName(), auction_code, name, description, initial_price, end_time):
+    if objetoServidor.createAuction(nomeCliente, auction_code, name, description, initial_price, end_time):
         print("######----- Leilão criado com sucesso! ------##############")
         print("###########################################################")
     else:
         print("## Leilão não criado. #####################################")
         print("###########################################################")
 
-def bidAuction(cliente, objetoServidor):
+def bidAuction(nomeCliente, clienteCallback, objetoServidor):
 
     print("Digite o código do item em leilão:")
     auction_code = input()
     print("Digite o valor do lance:")
     price = float(input())
 
-    signature = getSignature(cliente)
+    signature = getSignature(nomeCliente)
 
-    res = objetoServidor.bidAuction(cliente.getName(), auction_code, price, signature)
+    res = objetoServidor.bidAuction(nomeCliente, auction_code, price, signature)
 
     if (res == 200):
         print("## Signature verified! ####################################")
@@ -230,8 +195,8 @@ def showAuctions(objetoServidor):
         print("## Nenhum leilão em andamento. ----------------------------")
         print("-----------------------------------------------------------")           
 
-def showBids(cliente, objetoServidor):
-    bids = objetoServidor.getBids(cliente.getName())
+def showBids(nomeCliente, clienteCallback, objetoServidor):
+    bids = objetoServidor.getBids(nomeCliente)
 
     if bids != None:
         print("###########################################################")
@@ -246,7 +211,7 @@ def exit():
     print("## Saindo...")
     return 0
 
-def mainMenu(cliente, objetoServidor):
+def mainMenu(nomeCliente, clienteCallback, objetoServidor):
 
     opc = 0
 
@@ -255,11 +220,11 @@ def mainMenu(cliente, objetoServidor):
             case 1:
                 return showAuctions(objetoServidor)
             case 2:
-                return showBids(cliente, objetoServidor)
+                return showBids(nomeCliente, clienteCallback, objetoServidor)
             case 3:
-                return createAuction(cliente, objetoServidor)
+                return createAuction(nomeCliente, clienteCallback, objetoServidor)
             case 4:
-                return bidAuction(cliente, objetoServidor)
+                return bidAuction(nomeCliente, clienteCallback, objetoServidor)
             case 5:
                 return exit()
             case _:
